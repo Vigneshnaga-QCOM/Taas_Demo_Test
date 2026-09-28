@@ -5,7 +5,8 @@
     "storageType": "Auto",
     "storageLayout": "Auto",
     "productFlavor": "Auto",
-    "binaryType": "Auto"
+    "binaryType": "Auto",
+    "PathToContentsXML":"qcom-multimedia-image-rb3gen2-core-kit"
   },
   "testPlan": {
     "name": "test-taas",
