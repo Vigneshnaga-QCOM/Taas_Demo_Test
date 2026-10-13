@@ -1,7 +1,7 @@
 [{
   "board": "SC8480XP",
   "build": {
-    "url": "https://qli-prod-artifacts.qualcomm.com/qcom-prd-gh-artifacts/qualcomm-linux/qcom-deb-images/38237956394-1/trixie-flash-emmc.tar.gz",
+    "url": "https://qli-prod-artifacts.qualcomm.com/qcom-prd-gh-artifacts/qualcomm-linux/qcom-deb-images/38265843000-1/trixie-flash-emmc.tar.gz",
     "storageType": "Spinor__nvme",
     "storageLayout": "Auto",
     "productFlavor": "default__qcom_server",
@@ -17,7 +17,7 @@
 {
   "board": "QCS9075M",
   "build": {
-    "url": "https://qli-prod-artifacts.qualcomm.com/qli-prd-lecore-gh-artifacts/qualcomm-linux/qcom-distro-images/38332697209-1/qcom-ubuntu-iot-resolute-desktop-canonical.images.tar.gz",
+    "url": "https://qli-prod-artifacts.qualcomm.com/qli-prd-lecore-gh-artifacts/qualcomm-linux/qcom-distro-images/37898255527-1/qcom-ubuntu-iot-resolute-desktop-canonical.images.tar.gz",
     "storageType": "UFS",
     "storageLayout": "Auto",
     "productFlavor": "Auto",
