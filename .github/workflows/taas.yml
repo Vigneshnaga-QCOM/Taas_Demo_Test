@@ -68,32 +68,26 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
         run: |
           set -euo pipefail
-
           if [ -z "${QCOM_QDC_API_KEY}" ]; then
             echo "Missing required secret: QCOM_QDC_API_KEY" >&2
             exit 1
           fi
-
           if [ ! -f "${TAAS_CONFIG_PATH}" ]; then
             echo "TaaS config file not found at ${TAAS_CONFIG_PATH}" >&2
             exit 1
           fi
-
           # Validate that the config file is a JSON array, not a single object.
           CONFIG_TYPE="$(jq -r 'type' "${TAAS_CONFIG_PATH}")"
           if [ "${CONFIG_TYPE}" != "array" ]; then
             echo "ERROR: ${TAAS_CONFIG_PATH} must contain a JSON array, got: ${CONFIG_TYPE}" >&2
             exit 1
           fi
-
           COUNT="$(jq 'length' "${TAAS_CONFIG_PATH}")"
           if [ "${COUNT}" -eq 0 ]; then
             echo "No config entries found in ${TAAS_CONFIG_PATH}. Nothing to submit."
             exit 0
           fi
-
           echo "Found ${COUNT} config entry/entries. Submitting jobs in parallel..."
-
           # Pre-compute prNumber as a JSON value (number or null) so the jq filter
           # below needs no if/then/else expression, avoiding bash parsing ambiguity.
           if [ -n "${PR_NUMBER}" ]; then
@@ -101,9 +95,7 @@ jobs:
           else
             PR_NUMBER_JSON="null"
           fi
-
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-
           # Launch each config entry as an inline background subshell.
           # Avoids bash function definitions, which can trigger parse errors in
           # GitHub Actions' generated shell script for complex single-quoted strings.
@@ -114,7 +106,6 @@ jobs:
             (
               # Use the config's "name" field as a label; fall back to "job-<index>".
               NAME="$(printf '%s' "${ENTRY}" | jq -r --arg i "${INDEX}" '.name // ("job-" + $i)')"
-
               # Merge this config entry with GitHub callback + metadata fields.
               # prNumber is passed as a pre-computed JSON value (number or null).
               REQUEST_BODY="$(
@@ -138,7 +129,6 @@ jobs:
                     }
                   }'
               )"
-
               RESPONSE="$(
                 curl --fail-with-body --silent --show-error --location \
                   --request POST \
@@ -151,27 +141,23 @@ jobs:
                   --header "Content-Type: application/json" \
                   --data "${REQUEST_BODY}"
               )"
-
               JOB_ID="$(printf '%s' "${RESPONSE}" | jq -r '.id // .jobId // empty')"
               if [ -z "${JOB_ID}" ]; then
                 echo "ERROR: No job ID in response for entry ${INDEX} (${NAME})" >&2
                 printf '%s\n' "${RESPONSE}" >&2
                 exit 1
               fi
-
               # Persist {index, jobId, name} for the polling step.
               printf '%s' "${RESPONSE}" | jq -c \
                 --argjson index "${INDEX}" \
                 --arg name "${NAME}" \
                 '{index: $index, jobId: (.id // .jobId | tostring), name: $name}' \
                 > "${RUNNER_TEMP}/taas-job-${INDEX}.json"
-
               echo "Submitted [${INDEX}] ${NAME}: Job ID = ${JOB_ID}"
             ) &
             PIDS+=($!)
             INDEX=$(( INDEX + 1 ))
           done < <(jq -c '.[]' "${TAAS_CONFIG_PATH}")
-
           # Wait for all background submissions; count failures so we can report them all.
           FAILED=0
           for PID in "${PIDS[@]}"; do
@@ -181,14 +167,11 @@ jobs:
             echo "${FAILED} job submission(s) failed." >&2
             exit 1
           fi
-
           # Merge all per-job JSON files into a single manifest array, sorted by index.
           jq -sc 'sort_by(.index)' "${RUNNER_TEMP}"/taas-job-*.json \
             > "${RUNNER_TEMP}/taas-manifest.json"
-
           echo "All ${COUNT} jobs submitted. Manifest:"
           jq '.' "${RUNNER_TEMP}/taas-manifest.json"
-
       # Step 2: Poll each submitted job until it reaches a terminal state, then fetch
       # results via /jobs/{id}/results and write a markdown table to the job summary.
       - name: Poll results and print summary table
@@ -198,24 +181,19 @@ jobs:
           QCOM_QDC_API_KEY: ${{ secrets.QCOM_QDC_API_KEY }}
         run: |
           set -euo pipefail
-
           MANIFEST="${RUNNER_TEMP}/taas-manifest.json"
           if [ ! -f "${MANIFEST}" ]; then
             echo "No job manifest found — nothing to poll (all submissions may have been skipped)."
             exit 0
           fi
-
           # How often to check job status and the hard timeout (seconds).
           POLL_INTERVAL=30
           MAX_WAIT=7200
           ELAPSED=0
-
           echo "Polling for job completion (interval: ${POLL_INTERVAL}s, timeout: ${MAX_WAIT}s)..."
-
           # Poll every POLL_INTERVAL seconds until every job is in a terminal state.
           while true; do
             ALL_DONE=true
-
             while IFS= read -r JOB_ID; do
               STATE="$(
                 curl --fail-with-body --silent --show-error --location \
@@ -234,55 +212,90 @@ jobs:
                 ALL_DONE=false
               fi
             done < <(jq -r '.[].jobId' "${MANIFEST}")
-
             if ${ALL_DONE}; then
               echo "All jobs reached a terminal state."
               break
             fi
-
             if [ "${ELAPSED}" -ge "${MAX_WAIT}" ]; then
               echo "Timed out waiting for jobs after ${MAX_WAIT}s." >&2
               exit 1
             fi
-
             echo "  Not all jobs done yet. Waiting ${POLL_INTERVAL}s... (${ELAPSED}/${MAX_WAIT}s elapsed)"
             sleep "${POLL_INTERVAL}"
             ELAPSED=$(( ELAPSED + POLL_INTERVAL ))
           done
-
           echo "Fetching results and building summary table..."
-
-          # Write a markdown table to the GitHub Actions job summary (visible in the UI).
+          # Collect all job info and results first, storing per-job data files,
+          # so we can print the top-level table and then the per-job test case sections.
+          while IFS= read -r ROW; do
+            JOB_ID="$(printf '%s' "${ROW}" | jq -r '.jobId')"
+            NAME="$(printf '%s' "${ROW}" | jq -r '.name')"
+            # GET /jobs/{id} for job-level fields (board, state, result, completedOn, reportUrl).
+            curl --fail-with-body --silent --show-error --location \
+              --get \
+              "${TAAS_API_BASE_URL}/jobs/${JOB_ID}" \
+              --header "Authorization: ${QCOM_QDC_API_KEY}" \
+              --header "X-QCOM-TokenType: apikey" \
+              --header "X-QCOM-AppName: aihub" \
+              --header "X-QCOM-TracingId: ${GITHUB_RUN_ID}-info" \
+              --header "X-QCOM-ClientType: github-actions" \
+              > "${RUNNER_TEMP}/taas-info-${JOB_ID}.json"
+            # GET /jobs/{id}/results for per-test-case rows.
+            curl --fail-with-body --silent --show-error --location \
+              --get \
+              "${TAAS_API_BASE_URL}/jobs/${JOB_ID}/results" \
+              --header "Authorization: ${QCOM_QDC_API_KEY}" \
+              --header "X-QCOM-TokenType: apikey" \
+              --header "X-QCOM-AppName: aihub" \
+              --header "X-QCOM-TracingId: ${GITHUB_RUN_ID}-results" \
+              --header "X-QCOM-ClientType: github-actions" \
+              > "${RUNNER_TEMP}/taas-results-${JOB_ID}.json"
+          done < <(jq -c '.[]' "${MANIFEST}")
+          # Write job summary as a full HTML table so that <details>/<summary> inside
+          # a cell works correctly — markdown tables cannot contain block-level HTML.
           {
             echo "## TaaS Results"
             echo ""
-            echo "| Name | Result | Started | Completed |"
-            echo "|------|--------|---------|-----------|"
-
+            echo "<table>"
+            echo "<thead><tr><th>Board</th><th>TaaS Job ID</th><th>State</th><th>Result</th><th>Completed On</th></tr></thead>"
+            echo "<tbody>"
             while IFS= read -r ROW; do
               JOB_ID="$(printf '%s' "${ROW}" | jq -r '.jobId')"
               NAME="$(printf '%s' "${ROW}" | jq -r '.name')"
-
-              RESULTS="$(
-                curl --fail-with-body --silent --show-error --location \
-                  --get \
-                  "${TAAS_API_BASE_URL}/jobs/${JOB_ID}/results" \
-                  --header "Authorization: ${QCOM_QDC_API_KEY}" \
-                  --header "X-QCOM-TokenType: apikey" \
-                  --header "X-QCOM-AppName: aihub" \
-                  --header "X-QCOM-TracingId: ${GITHUB_RUN_ID}-query" \
-                  --header "X-QCOM-ClientType: github-actions"
-              )"
-
-              # Extract columns; try multiple common field name variants as fallbacks.
-              RESULT="$(printf '%s'    "${RESULTS}" | jq -r '.result    // .status      // "N/A"')"
-              STARTED="$(printf '%s'   "${RESULTS}" | jq -r '.started   // .startTime   // .startedAt   // "N/A"')"
-              COMPLETED="$(printf '%s' "${RESULTS}" | jq -r '.completed // .endTime     // .completedAt // "N/A"')"
-
-              echo "| ${NAME} | ${RESULT} | ${STARTED} | ${COMPLETED} |"
+              JOB_INFO="${RUNNER_TEMP}/taas-info-${JOB_ID}.json"
+              RESULTS_FILE="${RUNNER_TEMP}/taas-results-${JOB_ID}.json"
+              BOARD="$(        jq -r '.board        // "N/A"' "${JOB_INFO}")"
+              STATE="$(        jq -r '.state        // "N/A"' "${JOB_INFO}")"
+              RESULT="$(       jq -r '.result       // "N/A"' "${JOB_INFO}")"
+              COMPLETED_ON="$( jq -r '.completedOn  // "N/A"' "${JOB_INFO}")"
+              REPORT_URL="$(   jq -r '.jobReportUrl // ""'    "${JOB_INFO}")"
+              # Build the inner HTML test-case table for the <details> block.
+              TEST_COUNT="$(jq '.total // 0' "${RESULTS_FILE}")"
+              TEST_ROWS_HTML=""
+              if [ "${TEST_COUNT}" -eq 0 ]; then
+                TEST_ROWS_HTML="<tr><td><em>no test cases</em></td><td>—</td><td>—</td><td>—</td></tr>"
+              else
+                while IFS= read -r TEST; do
+                  TC_NAME="$(      printf '%s' "${TEST}" | jq -r '.name        // "N/A"')"
+                  TC_RESULT="$(    printf '%s' "${TEST}" | jq -r '.result      // "N/A"')"
+                  TC_STARTED="$(   printf '%s' "${TEST}" | jq -r '.startedOn   // "N/A"')"
+                  TC_COMPLETED="$( printf '%s' "${TEST}" | jq -r '.completedOn // "N/A"')"
+                  TEST_ROWS_HTML="${TEST_ROWS_HTML}<tr><td>${TC_NAME}</td><td>${TC_RESULT}</td><td>${TC_STARTED}</td><td>${TC_COMPLETED}</td></tr>"
+                done < <(jq -c '.data[]?' "${RESULTS_FILE}")
+              fi
+              # Build the summary label; link to report URL when available.
+              if [ -n "${REPORT_URL}" ]; then
+                SUMMARY_LABEL="<a href=\"${REPORT_URL}\">${JOB_ID}</a>"
+              else
+                SUMMARY_LABEL="${JOB_ID}"
+              fi
+              # The <details> block contains a full HTML test-case table.
+              JOB_ID_CELL="<details><summary>${SUMMARY_LABEL}</summary><table><thead><tr><th>Test Case</th><th>Result</th><th>Started On</th><th>Completed On</th></tr></thead><tbody>${TEST_ROWS_HTML}</tbody></table></details>"
+              echo "<tr><td>${BOARD}</td><td>${JOB_ID_CELL}</td><td>${STATE}</td><td>${RESULT}</td><td>${COMPLETED_ON}</td></tr>"
             done < <(jq -c '.[]' "${MANIFEST}")
+            echo "</tbody>"
+            echo "</table>"
           } | tee -a "${GITHUB_STEP_SUMMARY}"
-
       # Abort all active TaaS jobs when a PR is closed WITHOUT merging.
       # Skipped if the PR was merged, since completed test results are still useful.
       - name: Find and abort TaaS jobs
@@ -299,14 +312,11 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-
           if [ -z "${QCOM_QDC_API_KEY}" ]; then
             echo "Missing required secret: QCOM_QDC_API_KEY" >&2
             exit 1
           fi
-
           echo "Finding active TaaS jobs for PR #${PR_NUMBER} at ${HEAD_SHA}..."
-
           # Query all jobs for this PR head. pageSize=100 to cover multiple parallel jobs.
           JOBS_RESPONSE="$(
             curl --fail-with-body --silent --show-error --location \
@@ -324,20 +334,16 @@ jobs:
               --data-urlencode "prNumber=${PR_NUMBER}" \
               --data-urlencode "headSha=${HEAD_SHA}"
           )"
-
           # Collect every job that is not already in a terminal state.
           mapfile -t JOB_IDS < <(
             jq -r '[.data[]? | select(.state != "Completed" and .state != "Canceled" and .state != "Failed")] | .[].id' \
               <<<"${JOBS_RESPONSE}"
           )
-
           if [ "${#JOB_IDS[@]}" -eq 0 ]; then
             echo "No active TaaS jobs found for PR #${PR_NUMBER} at ${HEAD_SHA}."
             exit 0
           fi
-
           echo "Found ${#JOB_IDS[@]} active job(s). Aborting all..."
-
           # Abort each active job; TracingId includes the job ID for log correlation.
           for JOB_ID in "${JOB_IDS[@]}"; do
             echo "Aborting TaaS Job #${JOB_ID}..."
