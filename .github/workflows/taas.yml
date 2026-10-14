@@ -133,7 +133,8 @@ jobs:
                   }'
               )"
 
-              echo "${REQUEST_BODY }"
+              echo "=== HTTP Request Body ==="
+              echo "$REQUEST_BODY" | jq .
               
               RESPONSE="$(
                 curl --fail-with-body --silent --show-error --location \
