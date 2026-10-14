@@ -29,4 +29,37 @@
     "framework": "LAVA",
     "content": "test-taas"
   }
-}]
+},
+{
+  "board": "QCS8275",
+  "build": {
+    "url": "https://qli-prod-artifacts.qualcomm.com/qli-prd-lecore-gh-artifacts/qualcomm-linux/qcom-distro-images/37898255527-1/qcom-ubuntu-iot-resolute-desktop-canonical.images.tar.gz",
+    "storageType": "UFS",
+    "storageLayout": "Auto",
+    "productFlavor": "Auto",
+    "binaryType": "Auto",
+    "pathToContentXML": "qcom-ubuntu-iot-resolute-desktop-canonical.images\\iq-8275-evk\\ufs"
+  },
+  "testPlan": {
+    "name": "test-taas",
+    "framework": "LAVA",
+    "content": "test-taas"
+  }
+},
+{
+  "board": "qcs6490-rb3gen2",
+  "build": {
+    "url": "https://qli-prod-artifacts.qualcomm.com/qli-prd-lecore-gh-artifacts/qualcomm-linux/qcom-distro-images/37898255527-1/qcom-ubuntu-iot-resolute-desktop-canonical.images.tar.gz",
+    "storageType": "UFS",
+    "storageLayout": "Auto",
+    "productFlavor": "Auto",
+    "binaryType": "Auto",
+    "pathToContentXML": "qcom-ubuntu-iot-resolute-desktop-canonical.images\\qcs6490-rb3gen2-vision-kit\\ufs"
+  },
+  "testPlan": {
+    "name": "test-taas",
+    "framework": "LAVA",
+    "content": "test-taas"
+  }
+}
+]
