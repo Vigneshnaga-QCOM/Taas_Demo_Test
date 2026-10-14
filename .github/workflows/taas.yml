@@ -88,7 +88,6 @@ jobs:
             exit 0
           fi
           
-          echo '${{ TAAS_CONFIG_PATH }}' | jq .
           echo "Found ${COUNT} config entry/entries. Submitting jobs in parallel..."
           # Pre-compute prNumber as a JSON value (number or null) so the jq filter
           # below needs no if/then/else expression, avoiding bash parsing ambiguity.
