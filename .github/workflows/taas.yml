@@ -31,7 +31,7 @@ env:
   # Base URL for all TaaS REST API calls (submit, query, abort, results).
   TAAS_API_BASE_URL: https://dev.api.qualcomm.com/devicecloud/v2/taas
   # Path to the repo-level TaaS config. Must be a JSON array of job config objects.
-  TAAS_CONFIG_PATH: .github/taas-config.json
+  TAAS_CONFIG_PATH: Build_Board_config/taas_build_board-config.json
 
 # Serialize runs for the same PR or ref so results arrive in order.
 # cancel-in-progress: false ensures an in-flight test is never silently dropped.
