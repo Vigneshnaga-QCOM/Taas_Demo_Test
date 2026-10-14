@@ -31,7 +31,7 @@ env:
   # Base URL for all TaaS REST API calls (submit, query, abort, results).
   TAAS_API_BASE_URL: https://dev.api.qualcomm.com/devicecloud/v2/taas
   # Path to the repo-level TaaS config. Must be a JSON array of job config objects.
-  TAAS_CONFIG_PATH: .github/taas-config.json
+  TAAS_CONFIG_PATH: Build_Board_config/taas_build_board-config.json
 
 # Serialize runs for the same PR or ref so results arrive in order.
 # cancel-in-progress: false ensures an in-flight test is never silently dropped.
@@ -68,6 +68,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
         run: |
           set -euo pipefail
+
           if [ -z "${QCOM_QDC_API_KEY}" ]; then
             echo "Missing required secret: QCOM_QDC_API_KEY" >&2
             exit 1
@@ -87,11 +88,13 @@ jobs:
             echo "No config entries found in ${TAAS_CONFIG_PATH}. Nothing to submit."
             exit 0
           fi
+          
           echo "Found ${COUNT} config entry/entries. Submitting jobs in parallel..."
           # Pre-compute prNumber as a JSON value (number or null) so the jq filter
           # below needs no if/then/else expression, avoiding bash parsing ambiguity.
           if [ -n "${PR_NUMBER}" ]; then
             PR_NUMBER_JSON="${PR_NUMBER}"
+            echo "PR number is ${PR_NUMBER}"
           else
             PR_NUMBER_JSON="null"
           fi
@@ -129,6 +132,10 @@ jobs:
                     }
                   }'
               )"
+
+              echo "=== HTTP Request Body ==="
+              echo "$REQUEST_BODY" | jq .
+              
               RESPONSE="$(
                 curl --fail-with-body --silent --show-error --location \
                   --request POST \
