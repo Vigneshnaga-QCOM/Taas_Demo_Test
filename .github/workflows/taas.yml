@@ -87,11 +87,14 @@ jobs:
             echo "No config entries found in ${TAAS_CONFIG_PATH}. Nothing to submit."
             exit 0
           fi
+          
+          echo '${{ TAAS_CONFIG_PATH }}' | jq .
           echo "Found ${COUNT} config entry/entries. Submitting jobs in parallel..."
           # Pre-compute prNumber as a JSON value (number or null) so the jq filter
           # below needs no if/then/else expression, avoiding bash parsing ambiguity.
           if [ -n "${PR_NUMBER}" ]; then
             PR_NUMBER_JSON="${PR_NUMBER}"
+            echo "PR number is ${PR_NUMBER}"
           else
             PR_NUMBER_JSON="null"
           fi
@@ -129,6 +132,7 @@ jobs:
                     }
                   }'
               )"
+              echo '${{ REQUEST_BODY }}' | jq .
               RESPONSE="$(
                 curl --fail-with-body --silent --show-error --location \
                   --request POST \
