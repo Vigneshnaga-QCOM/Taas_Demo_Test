@@ -68,6 +68,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || '' }}
         run: |
           set -euo pipefail
+
           if [ -z "${QCOM_QDC_API_KEY}" ]; then
             echo "Missing required secret: QCOM_QDC_API_KEY" >&2
             exit 1
@@ -131,7 +132,9 @@ jobs:
                     }
                   }'
               )"
-              echo '${{ REQUEST_BODY }}' | jq .
+
+              echo "${REQUEST_BODY }"
+              
               RESPONSE="$(
                 curl --fail-with-body --silent --show-error --location \
                   --request POST \
