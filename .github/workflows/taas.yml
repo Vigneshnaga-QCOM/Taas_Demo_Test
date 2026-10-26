@@ -10,6 +10,10 @@ name: TaaS Check Run
 #   - Push to the main branch
 #   - Pull request lifecycle events: submit/poll on open/update, abort on close
 on:
+  schedule:
+    # Every hour
+    - cron: '0 */2 * * *'
+  
   workflow_dispatch:
   push:
     branches:
